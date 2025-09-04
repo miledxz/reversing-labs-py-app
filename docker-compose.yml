@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  weather-service:
+    build: .
+    container_name: weather-service
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_URL=sqlite:///./weather.db
+      - S3_BUCKET=weather-reports
+      - AWS_REGION=us-east-1
+      - AWS_ENDPOINT_URL=${AWS_ENDPOINT_URL:-}
+      - S3_PUBLIC_URL_FMT=${S3_PUBLIC_URL_FMT:-}
+    volumes:
+      - ./data:/app/data
+      - weather-db:/app
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - weather-network
+
+  # Optional: Add MinIO for local S3-compatible storage
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    volumes:
+      - minio-data:/data
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+    networks:
+      - weather-network
+    profiles:
+      - s3-local
+
+volumes:
+  weather-db:
+    driver: local
+  minio-data:
+    driver: local
+
+networks:
+  weather-network:
+    driver: bridge

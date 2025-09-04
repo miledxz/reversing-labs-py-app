@@ -1,0 +1,47 @@
+name: Snyk Vulnerability Scan
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  snyk-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Snyk CLI
+        uses: snyk/actions/setup@master
+
+      - name: Snyk Open Source scan (pip)
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          snyk test --file=requirements.txt --package-manager=pip --severity-threshold=medium || true
+          snyk monitor --file=requirements.txt --package-manager=pip || true
+
+      - name: Snyk Code scan (SAST)
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          snyk code test || true
+
+      - name: Build container image
+        run: docker build -t app-ci:latest .
+
+      - name: Snyk Container scan (Docker image)
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          snyk container test app-ci:latest --file=Dockerfile --severity-threshold=medium || true
